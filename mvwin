@@ -37,7 +37,7 @@ to resize windows; so ALT works out well as the "Window" mod key.
 Fore debuging, run in a terminal window and use --DB option to print
 values that it found and computed.
 
-Written by Joe Defenderfer / 2020 - Public domain
+Written by joedefen / 2020 - Public domain
 """
 
 # pylint: disable=invalid-name
