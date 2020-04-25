@@ -23,9 +23,9 @@ optional arguments:
 
 Relocated windows are made to fit, made active, raised, and contain
 the mouse.  Unless fullscreen, moved windows do not overlap XFCE4
-panels (unless the is defeated using `-P`).
+panels (unless defeated using `-P` with you may wish to use if you use hidden panels).
 
-The window geometry is presevered as best possible but constrained within
+The window geometry is preserved as best possible but constrained within
 the new monitor. Optionally (`-r`), the window will keep the same
 proportions in the new monitor instead.
 
