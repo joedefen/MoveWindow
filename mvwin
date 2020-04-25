@@ -4,39 +4,6 @@ This script moves windows between monitors particularly for XFCE4
 which provides no shortcuts for doing so. It requires python 3.4
 or later.
 
-Relocated windows are made to fit, made active, raised, and contain
-the mouse.  Unless fullscreen, moved windows do not overlap XFCE4
-panels (unless the is defeated using -P).
-
-The window geometry is presevered as best possible but constrained within
-the new monitor. Optionally (-r), the window will keep the same
-proportions in the new monitor instead.
-
-By default, the active window is chosen to move, but you can specify another
-window by its "window ID" (e.g., as shown by 'wmctrl -l').
-
-The monitor is determined by specifying one of
-    left, right, up, or down - direction relative to the current monitor
-    next, prev - move in an arbitrary rotation through monitors
-    here - same screen
-
-If you choose 'here' or a monitor that does not exist (e.g., right of
-the rightmost monitor), then the chosen window will simply be made to
-fit within the window if it does not already.
-
-In practice, you define keyboard shortcuts and tie them to this script.
-Personally, I define four shortcuts:
-    - ALT-J - mvwin down # move active window down
-    - ALT-K - mvwin up # move active window up
-    - ALT-H - mvwin left # move active window left
-    - ALT-L - mvwin right # move active window right
-
-The JKHL keys mimic the directional keys in vim, and ALT-Right-Click is used
-to resize windows; so ALT works out well as the "Window" mod key.
-
-Fore debuging, run in a terminal window and use --DB option to print
-values that it found and computed.
-
 Written by joedefen / 2020 - Public domain
 """
 
