@@ -45,10 +45,10 @@ fit within current monitor if it does not already.
 In practice, you define keyboard shortcuts and tie them to this script.
 Personally, I define four shortcuts:
 
-    - `ALT-J` - mvwin down # move active window down
-    - `ALT-K` - mvwin up # move active window up
-    - `ALT-H` - mvwin left # move active window left
-    - `ALT-L` - mvwin right # move active window right
+- `ALT-J` - `mvwin down` # move active window down
+- `ALT-K` - `mvwin up` # move active window up
+- `ALT-H` - `mvwin left` # move active window left
+- `ALT-L` - `mvwin right` # move active window right
     
 The JKHL keys mimic the directional keys in vim, and ALT-Right-Click is used
 to resize windows; so ALT works out well as the "Window" alteration key.
@@ -74,6 +74,8 @@ This script is loosely derived from the script/concepts in [calandoa/movescreen]
 Use `movescreen` if python 3.4+ is not available.
 
 Relative to `movescreen`, `mvwin` force fits the window within the new monitor,
-and generally, I think, is a bit more bug free and less annoying (e.g., avoids overlapping panels).
+and generally, I think, is a bit more bug free and less annoying
+(e.g., avoids overlapping panels, always fits windows, less geometry "loss" with multiple moves, etc.).
+
 This script is tested on four monitors of different sizes and orientations.
 
