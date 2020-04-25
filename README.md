@@ -50,9 +50,9 @@ Personally, I define four shortcuts:
 - `ALT-H` - `mvwin left` # move active window left
 - `ALT-L` - `mvwin right` # move active window right
     
-The JKHL keys mimic the directional keys in vim, and ALT-Right-Click is used
+The JKHL keys mimic the directional keys in `vim`, and `ALT-Right-Click` is used
 to resize windows; so ALT works out well as the "Window" alteration key.
-For debuging, run `mvwin` manually in a terminal window and use --DB option to print
+For debuging, run `mvwin` manually in a terminal window and use `--DB` option to print
 values that it found and computed.
 
 # Installation (Manual)
