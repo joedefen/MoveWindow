@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+"""
+This script moves windows between monitors particularly for XFCE4
+which provides no shortcuts for doing so. It requires python 3.4
+or later.
+
+Relocated windows are made to fit, made active, raised, and contain
+the mouse.  Unless fullscreen, moved windows do not overlap XFCE4
+panels (unless the is defeated using -P).
+
+The window geometry is presevered as best possible but constrained within
+the new monitor. Optionally (-r), the window will keep the same
+proportions in the new monitor instead.
+
+By default, the active window is chosen to move, but you can specify another
+window by its "window ID" (e.g., as shown by 'wmctrl -l').
+
+The monitor is determined by specifying one of
+    left, right, up, or down - direction relative to the current monitor
+    next, prev - move in an arbitrary rotation through monitors
+    here - same screen
+
+If you choose 'here' or a monitor that does not exist (e.g., right of
+the rightmost monitor), then the chosen window will simply be made to
+fit within the window if it does not already.
+
+In practice, you define keyboard shortcuts and tie them to this script.
+Personally, I define four shortcuts:
+    - ALT-J - mvwin down # move active window down
+    - ALT-K - mvwin up # move active window up
+    - ALT-H - mvwin left # move active window left
+    - ALT-L - mvwin right # move active window right
+
+The JKHL keys mimic the directional keys in vim, and ALT-Right-Click is used
+to resize windows; so ALT works out well as the "Window" mod key.
+
+Fore debuging, run in a terminal window and use --DB option to print
+values that it found and computed.
+
+Written by Joe Defenderfer / 2020 - Public domain
+"""
+
+# pylint: disable=invalid-name
+
+import subprocess
+import re
+import sys
+
+class MoveWin:
+    """The class that encapsulates the logic for moving windows between
+    monitors."""
+    # pylint: disable=too-many-instance-attributes
+    # pylint: disable=too-many-arguments
+    directions = ['left', 'right', 'up', 'down', 'next', 'prev', 'here']
+
+    @staticmethod
+    def parse_args():
+        """Handle all the arguments"""
+        # pylint: disable=import-outside-toplevel
+        import argparse
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-r', '--ratio', action='store_true',
+                help='keep window ratio')
+        parser.add_argument('-P', '--no-panel-adjust', action='store_true',
+                help='defeat adjustment for xfce4 panels')
+        parser.add_argument('--DB', action='store_true',
+                help='print debugging info')
+        parser.add_argument('-w', '--win-id', type=str, default=None,
+                help='specify ID of window')
+        parser.add_argument('direction', nargs=1, choices=MoveWin.directions,
+                help='choose direction of movement')
+        args = parser.parse_args()
+
+        if args.DB:
+            print('args:', args)
+
+        return args
+
+    def __init__(self, args):
+        self.disps = [] # all display geometries
+        self.relatives = [] # relatives of displays
+        self.states = [] # state of window (e.g., fullscreen)
+        self.ogeo = None    # old window geometry
+        self.ngeo = None    # now window geometry
+        self.panels = []  # all xcfe4-panels on desktop of window
+
+        # translate args to control variables
+        self.DB = args.DB # print debug info?
+        self.win_id = args.win_id # window ID (find active if not given)
+        self.dir = args.direction[0] # direction to move (e.g, up or next)
+        self.use_ratio = args.ratio # preserved window/display ratio, not size
+        self.adjust_panel = not args.no_panel_adjust # consider panels?
+
+
+    def find_target_window(self):
+        """Get the ID of the active window....  And the relevant panels.
+        """
+
+        # learn all windows...
+        windows = {}
+        out = subprocess.check_output(['wmctrl', '-l']).decode('ascii', 'ignore')
+        for line in out.splitlines():
+            ns = MoveWin.namespace()
+            ns.win_id, ns.desktop, ns.machine, ns.title = line.split(maxsplit=3)
+            windows[int(ns.win_id, 0)] = ns
+
+        # get active window (unless specified)...
+        if self.win_id is None:
+            out = subprocess.check_output(['xprop', '-root',
+                '_NET_ACTIVE_WINDOW']).decode('ascii', 'ignore')
+            # expecting: _NET_ACTIVE_WINDOW(WINDOW): window id # 0x48003f2, 0x0
+            self.win_id = re.search(r"window id # (0x[0-9a-f]+)", out).group(1)
+        if self.DB:
+            print('win_id:', self.win_id)
+        win = windows.get(int(self.win_id, 0), None)
+        if not win:
+            sys.exit(7)
+
+        # learn all panels panels on the selected window display
+        for panel in windows.values():
+            if panel.title == 'xfce4-panel' and (panel.desktop == '-1'
+                    or panel.desktop == win.desktop):
+                self.panels.append(panel)
+        if self.DB:
+            print('#wins:', len(windows), '#panels:', len(self.panels),
+                    'win:', vars(win))
+
+    def get_displays(self):
+        """Get display information using xrandr...
+         - looking for:    DVI-0 connected 1920x1080+0+0 (normal left ...
+         - disps[] is forced into geo namespace (.w, .x, .y)
+        """
+        out = subprocess.check_output(['xrandr']).decode('ascii', 'ignore')
+        reg = re.compile(r' connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
+        for line in out.splitlines():
+            match = reg.search(line)
+            if match:
+                ns = self.make_geo(
+                            int(match.group(2)),
+                            int(match.group(3)),
+                            int(match.group(4)),
+                            int(match.group(5)),
+                            D=len(self.disps))
+                self.disps.append(ns)
+
+        if self.DB:
+            print('disps:', '\n     '.join([str(vars(s)) for s in self.disps]))
+
+    def adjust_displays(self):
+        """Adjust disps by removing panels from their area."""
+        # pylint: disable=too-many-nested-blocks
+        for panel in self.panels:
+            ogeo, dummy_states = self.get_window_info(panel.win_id)
+
+            for display in self.disps:
+                if self.inside(ogeo, display):
+                    ogeo.D = display.D
+
+                    if ogeo.w < ogeo.h: # vertical
+                        if ogeo.x == display.x:
+                            display.x += ogeo.w
+                            display.w -= ogeo.w
+                            if self.DB:
+                                print('panel on LEFT adj', vars(display))
+                        elif ogeo.x + ogeo.w == display.x + display.w:
+                            display.w -= ogeo.w
+                            if self.DB:
+                                print('panel on RIGHT adj', vars(display))
+                    else: # horizontal
+                        if ogeo.y == display.y:
+                            display.y += ogeo.h
+                            display.h -= ogeo.h
+                            if self.DB:
+                                print('panel on TOP adj', vars(display))
+                        elif ogeo.x + ogeo.w == display.x + display.w:
+                            display.h -= ogeo.h
+                            if self.DB:
+                                print('panel on BOTTOM adj', vars(display))
+
+
+    @staticmethod
+    def overlap(a, b):
+        """Compute area of overlapping windows."""
+        tlx = max(a.x, b.x)
+        tly = max(a.y, b.y)
+        brx = min(a.x + a.w, b.x + b.w)
+        bry = min(a.y + a.h, b.y + b.h)
+        return max(0, brx - tlx) * max(0, bry - tly)
+
+    @staticmethod
+    def inside(a, b):
+        """ Compute top left and bottom right coords in disps format: [w h x y] """
+        return MoveWin.overlap(a, b) == a.w * a.h
+
+    def find_relatives(self):
+        """ relatives will hold a dict of how disps are disposed between themselves,
+        using their idx; e.g. if disps[0] is at left of 1,
+        then relatives[1].left == 0 and relatives[0].right == 1
+        """
+        for _ in range(len(self.disps)):
+            self.relatives.append(MoveWin.namespace(
+                {'right_area': 0, 'down_area': 0}))
+        relatives = self.relatives
+
+
+        for ia, sa in enumerate(self.disps):
+            relatives[ia].here = ia
+            relatives[ia].next = (ia + 1) % len(self.disps)
+            relatives[ia].prev = (ia - 1) % len(self.disps)
+
+        for ia, sa in enumerate(self.disps):
+            for ib, sb in enumerate(self.disps):
+                if sa != sb:
+                    # Duplicate display on right then bottom, and check intersection
+                    # If several, choose biggest for best choice presumably
+                    area = self.overlap(self.dup_geo(sa, x=sa.x + sa.w), sb)
+                    if area > relatives[ia].right_area:
+                        relatives[ia].right_area = area
+                        relatives[ia].right = ib
+                        relatives[ib].left = ia
+
+                    area = self.overlap(self.dup_geo(sa, y=sa.y + sa.h), sb)
+                    if area > relatives[ia].down_area:
+                        relatives[ia].down_area = area
+                        relatives[ia].down = ib
+                        relatives[ib].up = ia
+
+        for num in range(len(self.disps)):
+            delattr(relatives[num], 'right_area')
+            delattr(relatives[num], 'down_area')
+        if self.DB:
+            for num in range(len(self.disps)):
+                print(num, vars(relatives[num]))
+
+    @staticmethod
+    def get_window_info(win_id):
+        """ Get focused window info"""
+        # pylint: disable=no-member
+        out = subprocess.check_output(['xwininfo', '-id',
+            win_id, '-all']).decode('ascii', 'ignore')
+        geo_str = (('w', "Width:"), ('h', "Height:"),
+            ('x', "Absolute upper-left X:"), ('y', "Absolute upper-left Y:"),
+            ('rx', "Relative upper-left X:"), ('ry', "Relative upper-left Y:"), ('', ""))
+        state_str = ("Maximized Vert", "Maximized Horz", "Fullscreen",)
+        ogeo = MoveWin.namespace({'D': -1, 'w': None, 'h': None, 'x': None, 'y': None,
+            'rx': None, 'ry': None})
+        states = []
+
+        # Replace each ogeo elem with matching int, add states/types in state, converted for wmctrl
+        for l in out.splitlines():
+            l = l.strip()
+            idx = next(i for i, s in enumerate(geo_str) if l.startswith(s[1]))
+            if geo_str[idx][1] != "":
+                setattr(ogeo, geo_str[idx][0], int(l.split()[-1]))
+            elif l in state_str:
+                states += [l.lower().replace(' ', '_')]
+            elif l == "Desktop":
+                # Top level window
+                sys.exit(2)
+
+        # NOTE: adjust the geometry to include the whole window, borders and
+        # title included.  This makes for much easier transformation of the
+        # window;  when the moved is finally implemented, these adjustments
+        # will be reversed.
+        ogeo.x -= ogeo.rx  # make x the upper left corner include border
+        ogeo.y -= ogeo.ry  # make y the upper left corner include window title bar
+        ogeo.w += ogeo.rx + ogeo.rx  # incr width to include borders
+        ogeo.h += ogeo.ry + ogeo.rx  # incr height to include border and title bar
+        return ogeo, states
+
+    def get_chosen_window_info(self):
+        """ Get info for the chosen window. """
+        self.ogeo, self.states = self.get_window_info(self.win_id)
+        if self.DB:
+            print('ogeo:', vars(self.ogeo))
+            print('states:', self.states)
+
+    def pick_new_display(self):
+        """ Find display of active window from the max area. """
+        areas = list(map(lambda s: self.overlap(self.ogeo, s), self.disps))
+        try:
+            cur_idx = areas.index(max(areas + [1]))
+        except ValueError:
+            sys.exit(3)
+        ogeo = self.ogeo
+        ogeo.D = cur_idx
+
+        if self.DB:
+            print('self.dir:', self.dir, 'ogeo.D:', ogeo.D)
+        nidx = getattr(self.relatives[ogeo.D], self.dir, None)
+
+        self.ngeo = self.dup_geo(ogeo) # fix w,h,x,y later
+        self.ngeo.D = ogeo.D if nidx is None else nidx
+
+        if self.DB:
+            print('ngeo:', vars(self.ngeo))
+
+
+    def plan_move(self):
+        """ Compute the new window geometry. """
+        ngeo = self.ngeo
+        odisp = self.disps[self.ogeo.D]
+        ndisp = self.disps[ngeo.D]
+        if self.DB:
+            print('odisp:', vars(odisp))
+            print('ndisp:', vars(ndisp))
+
+        if self.use_ratio:
+            # scale window by keeping same ratio of space and size
+            wratio = 1.0 * ndisp.w / odisp.w
+            ngeo.w = int(0.5 + ngeo.w * wratio)
+            ngeo.x = int(0.5 + (ngeo.x - odisp.x) * wratio) + odisp.x
+            hratio = 1.0 * ndisp.h / odisp.h
+            ngeo.h = int(0.5 + ngeo.h * hratio)
+            ngeo.y = int(0.5 + (ngeo.y - odisp.y) * hratio) + odisp.y
+        else:
+            # OR give/take space around based on display size diffs
+            ngeo.x += (ndisp.w-odisp.w)//2
+            ngeo.y += (ndisp.h-odisp.h)//2
+
+        # now, shift into new display (but never left/above of left/top edges)
+        ngeo.x = ndisp.x + max(0, (ngeo.x - odisp.x))
+        ngeo.y = ndisp.y + max(0, (ngeo.y - odisp.y))
+
+        # now, if extends over right edge of new display, then constrain
+        over = (ngeo.x + ngeo.w) - (ndisp.x + ndisp.w)
+        if over > 0:
+            ngeo.x -= min(ngeo.x-ndisp.x, over)
+            ngeo.w = min(ngeo.w, ndisp.w)
+            if self.DB:
+                print('over-x:', over)
+
+        # now, if extends below bottom edge of new display, then constrain
+        over = (ngeo.y + ngeo.h) - (ndisp.y + ndisp.h)
+        if over > 0:
+            ngeo.y -= min(ngeo.y-ndisp.y, over)
+            ngeo.h = min(ngeo.h, ndisp.h)
+            if self.DB:
+                print('over-y:', over)
+
+        # all done
+        self.ngeo = ngeo
+        if self.DB:
+            print('ngeo:', vars(self.ngeo))
+
+    def do_move(self):
+        """Set window info given the planned move"""
+        # pylint: disable=no-member
+        win_id = self.win_id
+        ngeo = self.ngeo
+
+        # Execute move command, preserving the states
+        def wmctrl(win_id, ops):
+            for op in ops:
+                cmd = ['wmctrl', '-i', '-R', win_id] + op
+                subprocess.call(cmd)
+
+        # wmctrl is iffy with -b argument (so, specify one state per command)
+        wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
+        x = ngeo.x
+        y = ngeo.y
+        w = ngeo.w - ngeo.rx - ngeo.rx
+        h = ngeo.h - ngeo.ry - ngeo.rx
+        spec = '0,%d,%d,%d,%d' % (x, y, w, h)
+        if self.DB:
+            print('wmctrl:', win_id, '-e', spec)
+        wmctrl(win_id, [['-e', spec]])
+        wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
+
+        # ensure on top
+        subprocess.call(['xdotool', 'windowraise', win_id])
+
+        # put mouse in moved window
+        subprocess.call(['xdotool', 'mousemove',
+            str(ngeo.x + ngeo.w//2), str(ngeo.y + self.ogeo.ry + 2)])
+
+
+    def DB_method(self, func):
+        """ print method sections for debugging """
+        # pylint: disable=eval-used
+        if self.DB:
+            print('-------', func, '-------')
+        return eval('self.{}'.format(func))
+
+    def go(self):
+        """ Implement the window move. """
+
+        self.DB_method('find_target_window()')
+        self.DB_method('get_displays()')
+        self.DB_method('find_relatives()')
+        self.DB_method('get_chosen_window_info()')
+        if 'fullscreen' not in self.states and self.adjust_panel:
+            self.DB_method('adjust_displays()')
+        self.DB_method('pick_new_display()')
+        self.DB_method('plan_move()')
+        self.DB_method('do_move()')
+
+    @staticmethod
+    def make_geo(w, h, x, y, rx=0, ry=0, D=-1):
+        """Make a geo from its component values (w, h, x, y, ...) to namespace."""
+        return MoveWin.namespace({'D': D, 'w': w, 'h': h, 'x': x, 'y': y,
+            'rx': rx, 'ry': ry})
+
+    @staticmethod
+    def dup_geo(o, w=None, h=None, x=None, y=None, rx=None, ry=None, d=None):
+        """Copy one 'geo' to another with optional overrides."""
+        return MoveWin.namespace({
+            'D': o.D if d is None else d,
+            'w': o.w if w is None else w,
+            'h': o.h if h is None else h,
+            'x': o.x if x is None else x,
+            'y': o.y if y is None else y,
+            'rx': o.rx if rx is None else rx,
+            'ry': o.ry if ry is None else ry})
+
+    @staticmethod
+    def namespace(avDict=None):
+        """
+        Create a module to be used as generic namespace.
+        The attribute/values given at creation is extendable.  Arguments:
+          - avDict - dict of name/value pairs to seed the namespace.
+
+        Examples
+            >>> ns = namespace({'a':1,'b':2})
+            >>> dir(ns)
+            ['a','b']
+            >>> ns.member = 'value'
+            >>> vars(ns.member)
+            {'a': 1, 'b': 2, 'member': 'value'}
+        """
+        # pylint: disable=import-outside-toplevel
+        import types
+        ns = types.ModuleType('')
+        for attr in dir(ns):
+            delattr(ns, attr)
+        if avDict:
+            if not isinstance(avDict, dict):
+                raise Exception("namespace(dict) abuse [arg is {}]"
+                        . format(str(type(avDict))))
+            for attr in avDict:
+                setattr(ns, attr, avDict[attr])
+        return ns
+
+if __name__ == "__main__":
+    MoveWin(MoveWin.parse_args()).go()
