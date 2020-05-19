@@ -69,7 +69,9 @@ class MoveWin:
         out = subprocess.check_output(['wmctrl', '-l']).decode('ascii', 'ignore')
         for line in out.splitlines():
             ns = MoveWin.namespace()
-            ns.win_id, ns.desktop, ns.machine, ns.title = line.split(maxsplit=3)
+            ns.win_id, ns.desktop, *more = line.split(maxsplit=3)
+            ns.machine = more[0] if len(more) > 0 else ''
+            ns.title = more[1] if len(more) > 1 else ''
             windows[int(ns.win_id, 0)] = ns
 
         # get active window (unless specified)...
@@ -331,7 +333,7 @@ class MoveWin:
         h = ngeo.h - ngeo.ry - ngeo.rx
         spec = '0,%d,%d,%d,%d' % (x, y, w, h)
         if self.DB:
-            print('wmctrl:', win_id, '-e', spec)
+            print('wmctrl:', win_id, '-e', spec, 'states:', self.states)
         wmctrl(win_id, [['-e', spec]])
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
 
