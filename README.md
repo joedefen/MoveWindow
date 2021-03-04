@@ -1,8 +1,9 @@
 
 # MoveWindow (a.k.a. mvwin)
-This script moves windows between monitors particularly for XFCE4
-which provides no shortcuts for doing so. It requires python 3.4
-or later.
+This script moves windows between monitors on many Linux desktops, particularly for XFCE4
+which provides no keyboard shortcuts for doing so.
+ - It requires python 3.4 or later and several CLI tools.
+ - It may be quite useful on desktops (like KDE where I also use it) where the built-in moves is not done so smartly.
 
 ## Usage
 ```
