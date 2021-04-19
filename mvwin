@@ -94,8 +94,9 @@ class MoveWin:
 
         # learn all panels panels on the selected window display
         for panel in windows.values():
-            if panel.title in ('xfce4-panel', 'Plasma') and (panel.desktop == '-1'
-                    or panel.desktop == win.desktop):
+            if panel.title in ('xfce4-panel', 'Plasma', # xfce and kde
+                    'Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel' # mate
+                    ) and (panel.desktop == '-1' or panel.desktop == win.desktop):
                 self.panels.append(panel)
         if self.DB:
             print('#wins:', len(windows), '#panels:', len(self.panels),
