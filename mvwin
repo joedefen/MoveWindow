@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-This script moves windows between monitors particularly for XFCE4
-which provides no shortcuts for doing so. It requires python 3.4
-or later.
+This script moves windows between monitors supporting:
+ - XFCE4 (which provides no shortcuts for doing so).
+ - Plasma
+It requires python 3.4 or later.
 
-Written by joedefen / 2020 - Public domain
+Theory of operation... uses
+    - wmctrl -l # to learn ids of all windows
+    - xrandr | egrep '\<connected\>' # to learn geometry of displays
+    - xwininfo -id {ID} -all # to learn geometry of windows and window state
+
+Written by joedefen / 2020 to 2021 - Public domain
 """
 
 # pylint: disable=invalid-name
@@ -30,7 +36,7 @@ class MoveWin:
         parser.add_argument('-r', '--ratio', action='store_true',
                 help='keep window ratio')
         parser.add_argument('-P', '--no-panel-adjust', action='store_true',
-                help='defeat adjustment for xfce4 panels')
+                help='defeat adjustment for desktop panels')
         parser.add_argument('--DB', action='store_true',
                 help='print debugging info')
         parser.add_argument('-w', '--win-id', type=str, default=None,
@@ -88,7 +94,7 @@ class MoveWin:
 
         # learn all panels panels on the selected window display
         for panel in windows.values():
-            if panel.title == 'xfce4-panel' and (panel.desktop == '-1'
+            if panel.title in ('xfce4-panel', 'Plasma') and (panel.desktop == '-1'
                     or panel.desktop == win.desktop):
                 self.panels.append(panel)
         if self.DB:

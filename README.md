@@ -1,8 +1,12 @@
 
 # MoveWindow (a.k.a. mvwin)
-This script moves windows between monitors particularly for XFCE4
-which provides no shortcuts for doing so. It requires python 3.4
-or later.
+This script moves windows between monitors for:
+
+- XFCE4 (which provides no shortcuts for doing so)
+- KDE/Plasma
+- other linux desktops but w/o adjustment for its panels
+
+It requires python 3.4 or later.
 
 ## Usage
 ```
@@ -14,7 +18,7 @@ positional arguments:
 optional arguments:
   -r, --ratio           keep window ratio
   -P, --no-panel-adjust
-                        defeat adjustment for xfce4 panels
+                        defeat adjustment for desktop panels
   --DB                  print debugging info
   -w WIN_ID, --win-id WIN_ID
                         specify ID of window
