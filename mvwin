@@ -57,6 +57,7 @@ class MoveWin:
         self.ogeo = None    # old window geometry
         self.ngeo = None    # now window geometry
         self.panels = []  # all xcfe4-panels on desktop of window
+        self.is_plasma = False
 
         # translate args to control variables
         self.DB = args.DB # print debug info?
@@ -98,6 +99,8 @@ class MoveWin:
                     'Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel' # mate
                     ) and (panel.desktop == '-1' or panel.desktop == win.desktop):
                 self.panels.append(panel)
+                if panel.title == 'Plasma':
+                    self.is_plasma = True
         if self.DB:
             print('#wins:', len(windows), '#panels:', len(self.panels),
                     'win:', vars(win))
@@ -209,8 +212,7 @@ class MoveWin:
             for num in range(len(self.disps)):
                 print(num, vars(relatives[num]))
 
-    @staticmethod
-    def get_window_info(win_id):
+    def get_window_info(self, win_id):
         """ Get focused window info"""
         # pylint: disable=no-member
         out = subprocess.check_output(['xwininfo', '-id',
@@ -224,6 +226,7 @@ class MoveWin:
         states = []
 
         # Replace each ogeo elem with matching int, add states/types in state, converted for wmctrl
+        frame_extents_str = '' # e.g., Frame extents: 4, 4, 21, 4 for l in out.splitlines():
         for l in out.splitlines():
             l = l.strip()
             idx = next(i for i, s in enumerate(geo_str) if l.startswith(s[1]))
@@ -231,9 +234,17 @@ class MoveWin:
                 setattr(ogeo, geo_str[idx][0], int(l.split()[-1]))
             elif l in state_str:
                 states += [l.lower().replace(' ', '_')]
+            elif l.startswith('Frame extents: '):
+                frame_extents_str = l[len('Frame extents: '):] # e.g., trim to "4, 4, 21, 4"
             elif l == "Desktop":
                 # Top level window
                 sys.exit(2)
+
+        # for whatever reasons, Plasma does not set rx, rx... infer from frame extents
+        if self.is_plasma and frame_extents_str:
+            nums = frame_extents_str.split(', ', 4)
+            ogeo.rx , ogeo.ry = int(nums[0]), int(nums[2])
+
 
         # NOTE: adjust the geometry to include the whole window, borders and
         # title included.  This makes for much easier transformation of the
@@ -333,15 +344,18 @@ class MoveWin:
                 subprocess.call(cmd)
 
         # wmctrl is iffy with -b argument (so, specify one state per command)
+        if self.is_plasma:
+            wmctrl(win_id, [['-b', 'toggle,' + s] for s in ['maximized_vert','maximized_vert']])
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
-        x = ngeo.x
-        y = ngeo.y
+        x = ngeo.x + ngeo.rx if self.is_plasma else 0
+        y = ngeo.y + ngeo.ry if self.is_plasma else 0
         w = ngeo.w - ngeo.rx - ngeo.rx
         h = ngeo.h - ngeo.ry - ngeo.rx
         spec = '0,%d,%d,%d,%d' % (x, y, w, h)
         if self.DB:
             print('wmctrl:', win_id, '-e', spec, 'states:', self.states)
         wmctrl(win_id, [['-e', spec]])
+
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
 
         # ensure on top
