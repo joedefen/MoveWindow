@@ -249,8 +249,9 @@ class MoveWin:
                 # Top level window
                 sys.exit(2)
 
-        # for whatever reasons, Plasma does not set rx, rx... infer from frame extents
-        if self.desktop in ('plasma','mate') and frame_extents_str:
+        # for whatever reasons, XFCE4's rx, ry conventions are unique to it.
+        # Generally, infer from frame extents
+        if self.desktop not in ('xfce4',) and frame_extents_str:
             nums = frame_extents_str.split(', ', 4)
             ogeo.rx , ogeo.ry = int(nums[0]), int(nums[2])
 
