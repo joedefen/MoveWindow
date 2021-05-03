@@ -93,7 +93,7 @@ class MoveWin:
         if not win:
             sys.exit(7)
 
-        # learn all panels panels on the selected window display
+        # learn all panels panels on the selected desktop
         for panel in windows.values():
             if panel.title in ('xfce4-panel', 'Plasma', # xfce and kde
                     'Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel' # mate
@@ -136,8 +136,10 @@ class MoveWin:
                 if self.inside(ogeo, display):
                     ogeo.D = display.D
 
-                    if ogeo.w < ogeo.h: # vertical
-                        if ogeo.x == display.x:
+                    if ogeo.w < ogeo.h // 3: # vertical panel
+                        if ogeo.h <= (7 * display.h) // 10:
+                            pass # not much of a vertical panel
+                        elif ogeo.x == display.x:
                             display.x += ogeo.w
                             display.w -= ogeo.w
                             if self.DB:
@@ -146,8 +148,10 @@ class MoveWin:
                             display.w -= ogeo.w
                             if self.DB:
                                 print('panel on RIGHT adj', vars(display))
-                    else: # horizontal
-                        if ogeo.y == display.y:
+                    elif ogeo.h < ogeo.w // 3: # horizontal panel
+                        if ogeo.w <= (7 * display.w) // 10:
+                            pass # not much of a horizontal panel
+                        elif ogeo.y == display.y // 3:
                             display.y += ogeo.h
                             display.h -= ogeo.h
                             if self.DB:

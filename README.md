@@ -26,8 +26,12 @@ optional arguments:
 ## Description
 
 Relocated windows are made to fit, made active, raised, and contain
-the mouse.  Unless fullscreen, moved windows do not overlap XFCE4
-panels (unless defeated using `-P` with you may wish to use if you use hidden panels).
+the mouse.
+* Unless fullscreen, moved windows do not overlap XFCE4 panels
+  (unless defeated using `-P` with you may wish to use if you use hidden panels).
+* Similarly, for KDE/Plasma, but it is more of a guessing game what is a panel;
+  to be considers, a panel must be on an display and take up at 70% of the
+  length of that edge.
 
 The window geometry is preserved as best possible but constrained within
 the new monitor. Optionally (`-r`), the window will keep the same
