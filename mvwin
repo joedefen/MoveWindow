@@ -57,7 +57,7 @@ class MoveWin:
         self.ogeo = None    # old window geometry
         self.ngeo = None    # now window geometry
         self.panels = []  # all xcfe4-panels on desktop of window
-        self.is_plasma = False
+        self.desktop = 'unknown' # unknown
 
         # translate args to control variables
         self.DB = args.DB # print debug info?
@@ -95,12 +95,17 @@ class MoveWin:
 
         # learn all panels panels on the selected desktop
         for panel in windows.values():
-            if panel.title in ('xfce4-panel', 'Plasma', # xfce and kde
-                    'Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel' # mate
-                    ) and (panel.desktop == '-1' or panel.desktop == win.desktop):
-                self.panels.append(panel)
-                if panel.title == 'Plasma':
-                    self.is_plasma = True
+            if panel.desktop == '-1' or panel.desktop == win.desktop:
+                if panel.title in ('xfce4-panel',): # XFCE
+                    self.desktop = 'xfce4'
+                    self.panels.append(panel)
+                elif panel.title in ('Plasma',): # KDE
+                    self.panels.append(panel)
+                    self.desktop = 'plasma'
+                elif panel.title in ('Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel'): # mate
+                    self.panels.append(panel)
+                    self.desktop = 'mate'
+
         if self.DB:
             print('#wins:', len(windows), '#panels:', len(self.panels),
                     'win:', vars(win))
@@ -245,7 +250,7 @@ class MoveWin:
                 sys.exit(2)
 
         # for whatever reasons, Plasma does not set rx, rx... infer from frame extents
-        if self.is_plasma and frame_extents_str:
+        if self.desktop in ('plasma','mate') and frame_extents_str:
             nums = frame_extents_str.split(', ', 4)
             ogeo.rx , ogeo.ry = int(nums[0]), int(nums[2])
 
@@ -348,13 +353,13 @@ class MoveWin:
                 subprocess.call(cmd)
 
         # wmctrl is iffy with -b argument (so, specify one state per command)
-        if self.is_plasma:
+        if self.desktop in ('plasma', 'mate'):
             # this kludge to break possible tiled window is per:
             #  unix.stackexchange.com/questions/353205/wmctrl-doesnt-move-window-when-snapped-or-tiled
             wmctrl(win_id, [['-b', 'toggle,' + s] for s in ['maximized_vert','maximized_vert']])
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
-        x = ngeo.x + (ngeo.rx if self.is_plasma else 0)
-        y = ngeo.y + (ngeo.ry if self.is_plasma else 0)
+        x = ngeo.x + (ngeo.rx if self.desktop in ('plasma',) else 0)
+        y = ngeo.y + (ngeo.ry if self.desktop in ('plasma',) else 0)
         w = ngeo.w - ngeo.rx - ngeo.rx
         h = ngeo.h - ngeo.ry - ngeo.rx
         spec = '0,%d,%d,%d,%d' % (x, y, w, h)
