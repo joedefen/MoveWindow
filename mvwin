@@ -353,8 +353,8 @@ class MoveWin:
             #  unix.stackexchange.com/questions/353205/wmctrl-doesnt-move-window-when-snapped-or-tiled
             wmctrl(win_id, [['-b', 'toggle,' + s] for s in ['maximized_vert','maximized_vert']])
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
-        x = ngeo.x + ngeo.rx if self.is_plasma else 0
-        y = ngeo.y + ngeo.ry if self.is_plasma else 0
+        x = ngeo.x + (ngeo.rx if self.is_plasma else 0)
+        y = ngeo.y + (ngeo.ry if self.is_plasma else 0)
         w = ngeo.w - ngeo.rx - ngeo.rx
         h = ngeo.h - ngeo.ry - ngeo.rx
         spec = '0,%d,%d,%d,%d' % (x, y, w, h)
