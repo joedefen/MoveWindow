@@ -156,12 +156,12 @@ class MoveWin:
                     elif ogeo.h < ogeo.w // 3: # horizontal panel
                         if ogeo.w <= (7 * display.w) // 10:
                             pass # not much of a horizontal panel
-                        elif ogeo.y == display.y // 3:
+                        elif ogeo.y == display.y:
                             display.y += ogeo.h
                             display.h -= ogeo.h
                             if self.DB:
                                 print('panel on TOP adj', vars(display))
-                        elif ogeo.x + ogeo.w == display.x + display.w:
+                        elif ogeo.y + ogeo.h == display.y + display.h:
                             display.h -= ogeo.h
                             if self.DB:
                                 print('panel on BOTTOM adj', vars(display))
