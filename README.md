@@ -27,11 +27,11 @@ optional arguments:
 
 Relocated windows are made to fit, made active, raised, and contain
 the mouse.
-* Unless fullscreen, moved windows do not overlap XFCE4 panels
+* Unless fullscreen, moved windows do not overlap XFCE4 and Mate panels
   (unless defeated using `-P` with you may wish to use if you use hidden panels).
-* Similarly, for KDE/Plasma, but it is more of a guessing game what is a panel;
-  to be considers, a panel must be on an display and take up at 70% of the
-  length of that edge.
+* Similarly, for KDE/Plasma, but it is a guessing game which are panels;
+  the heuristic rule is that a panel must be on an edge of a display
+  and take up at 70% of the length of that edge.
 
 The window geometry is preserved as best possible but constrained within
 the new monitor. Optionally (`-r`), the window will keep the same
@@ -85,5 +85,7 @@ Relative to `movescreen`, `mvwin` force fits the window within the new monitor,
 and generally, I think, is a bit more bug free and less annoying
 (e.g., avoids overlapping panels, always fits windows, less geometry "loss" with multiple moves, etc.).
 
-This script is tested on four monitors of different sizes and orientations.
+This script is tested on four monitors of different sizes and orientations and with XFCE4,
+KDE/Plasma, and Mate.  Other desktops (e.g., Cinnamon) seem to partly work but w/o regard
+to its panels.
 
