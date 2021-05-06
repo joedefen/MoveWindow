@@ -73,13 +73,18 @@ class MoveWin:
 
         # learn all windows...
         windows = {}
-        out = subprocess.check_output(['wmctrl', '-l']).decode('ascii', 'ignore')
+        out = subprocess.check_output(['wmctrl', '-Gl']).decode('ascii', 'ignore')
         for line in out.splitlines():
             ns = MoveWin.namespace()
-            ns.win_id, ns.desktop, *more = line.split(maxsplit=3)
+            ns.win_id, ns.desktop, ns.x, ns.y, ns.w, ns.h, *more = line.split(maxsplit=7)
+            # NOTE: I cannot imagine why I have to cut the x,y by a factor of two
+            ns.x, ns.y, ns.w, ns.h = int(ns.x)//2, int(ns.y)//2, int(ns.w), int(ns.h)
             ns.machine = more[0] if len(more) > 0 else ''
             ns.title = more[1] if len(more) > 1 else ''
             windows[int(ns.win_id, 0)] = ns
+            if ns.title in ('nemo-desktop',):
+                self.desktop = 'cinnamon'
+        self.windows = windows
 
         # get active window (unless specified)...
         if self.win_id is None:
@@ -115,18 +120,24 @@ class MoveWin:
          - looking for:    DVI-0 connected 1920x1080+0+0 (normal left ...
          - disps[] is forced into geo namespace (.w, .x, .y)
         """
-        out = subprocess.check_output(['xrandr']).decode('ascii', 'ignore')
-        reg = re.compile(r' connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
-        for line in out.splitlines():
-            match = reg.search(line)
-            if match:
-                ns = self.make_geo(
-                            int(match.group(2)),
-                            int(match.group(3)),
-                            int(match.group(4)),
-                            int(match.group(5)),
-                            D=len(self.disps))
-                self.disps.append(ns)
+        if self.desktop in ('cinnamon',):
+            for win in self.windows.values():
+                if win.title in ('Desktop', 'nemo-desktop'):
+                    ns = self.make_geo(w=win.w, h=win.h, x=win.x, y=win.y, D=len(self.disps))
+                    self.disps.append(ns)
+        else:
+            out = subprocess.check_output(['xrandr']).decode('ascii', 'ignore')
+            reg = re.compile(r' connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
+            for line in out.splitlines():
+                match = reg.search(line)
+                if match:
+                    ns = self.make_geo(
+                                int(match.group(2)),
+                                int(match.group(3)),
+                                int(match.group(4)),
+                                int(match.group(5)),
+                                D=len(self.disps))
+                    self.disps.append(ns)
 
         if self.DB:
             print('disps:', '\n     '.join([str(vars(s)) for s in self.disps]))
