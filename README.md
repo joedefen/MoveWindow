@@ -1,12 +1,30 @@
-
 # MoveWindow (a.k.a. mvwin)
-This script moves windows between monitors for:
-- XFCE4 (which provides no shortcuts for doing so)
-- KDE/Plasma (where the built-in moves are not too smart)
-- Mate
-- other linux desktops but w/o adjustment for its panels
+This script moves windows between monitors for these Linux desktop environments (DEs):
+- **XFCE4** (which provides no shortcuts for doing so)
+- **KDE/Plasma** (where the built-in moves are not too smart), but
+  looks rather lousy when Compositor is running)
+- **Mate**
+- **Cinnamon**
+- *perhaps* other linux desktops but w/o adjustment for its panels
 
-It requires python 3.4 or later.
+When `mvwin` moves a window, it is force fit into the destination monitor
+w/o overlapping its panels (unless fullscreen);
+this will reduce its size if needed.
+
+If the window is fullscreen or maximized horizotonally or vertically,
+`mvwin` preserves those attributes in the move;
+so, sometimes windows are enlarged when moved.
+
+**Caveats.** The underlying commands (i.e., xrandr, xwininfo, wmctrl and xdotool) are all
+hacks that only mostly work, and their defects vary between window managers.
+If the window is maximized horizontally and/or vertically,
+the movement is more likely to be faulty than when not maximized.
+Imperfect movements are minimized for each DE with custom workarounds, but
+there are a few imperfections w/o a known workaround.
+
+
+## X-Windows is Required
+Your DE must be **running under X** (not Wayland).
 
 ## Usage
 ```
@@ -64,16 +82,19 @@ For debuging, run `mvwin` manually in a terminal window and use `--DB` option to
 values that it found and computed.
 
 # Installation (Manual)
-
-Just put `mvwin` on your PATH and define keyboard shortcuts.
+Put `mvwin` on your PATH and define keyboard shortcuts.
 
 # Dependencies
-
 - python 3.4+
-- xrandr
-- xwininfo
-- wmctrl (not present? try sudo apt-get install wmctrl )
-- xdotool
+- X-Windows tools:
+  - `xrandr`
+  - `xwininfo`
+  - `wmctrl`
+  - `xdotool`
+
+If the tool is missing, try `sudo apt-get install {tool}` or the equivalent for your distro.
+
+Again, Wayland is not supported.
 
 ## Credits / Alternatives
 
@@ -85,7 +106,7 @@ Relative to `movescreen`, `mvwin` force fits the window within the new monitor,
 and generally, I think, is a bit more bug free and less annoying
 (e.g., avoids overlapping panels, always fits windows, less geometry "loss" with multiple moves, etc.).
 
-This script is tested on four monitors of different sizes and orientations and with XFCE4,
-KDE/Plasma, and Mate.  Other desktops (e.g., Cinnamon) seem to partly work but w/o regard
-to its panels.
+This script is tested on four monitors of different sizes and orientations and with 
+all the mentioned DEs in the introductory section.
 
+This script is only tested for non-autohide panels.

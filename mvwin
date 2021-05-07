@@ -3,6 +3,8 @@
 This script moves windows between monitors supporting:
  - XFCE4 (which provides no shortcuts for doing so).
  - Plasma
+ - cinnimon
+ - mate
 It requires python 3.4 or later.
 
 Theory of operation... uses
@@ -18,6 +20,7 @@ Written by joedefen / 2020 to 2021 - Public domain
 import subprocess
 import re
 import sys
+import time
 
 class MoveWin:
     """The class that encapsulates the logic for moving windows between
@@ -57,7 +60,7 @@ class MoveWin:
         self.ogeo = None    # old window geometry
         self.ngeo = None    # now window geometry
         self.panels = []  # all xcfe4-panels on desktop of window
-        self.desktop = 'unknown' # unknown
+        self.wm = 'unknown' # window manager starts as unknown
 
         # translate args to control variables
         self.DB = args.DB # print debug info?
@@ -77,13 +80,13 @@ class MoveWin:
         for line in out.splitlines():
             ns = MoveWin.namespace()
             ns.win_id, ns.desktop, ns.x, ns.y, ns.w, ns.h, *more = line.split(maxsplit=7)
+            ns.x, ns.y, ns.w, ns.h = int(ns.x), int(ns.y), int(ns.w), int(ns.h)
             # NOTE: I cannot imagine why I have to cut the x,y by a factor of two
-            ns.x, ns.y, ns.w, ns.h = int(ns.x)//2, int(ns.y)//2, int(ns.w), int(ns.h)
             ns.machine = more[0] if len(more) > 0 else ''
             ns.title = more[1] if len(more) > 1 else ''
             windows[int(ns.win_id, 0)] = ns
-            if ns.title in ('nemo-desktop',):
-                self.desktop = 'cinnamon'
+            if ns.title in ('nemo-desktop', ):
+                self.wm = 'cinnamon'
         self.windows = windows
 
         # get active window (unless specified)...
@@ -101,18 +104,18 @@ class MoveWin:
         # learn all panels panels on the selected desktop
         for panel in windows.values():
             if panel.desktop == '-1' or panel.desktop == win.desktop:
-                if panel.title in ('xfce4-panel',): # XFCE
-                    self.desktop = 'xfce4'
+                if panel.title in ('xfce4-panel', ): # XFCE
+                    self.wm = 'xfce4'
                     self.panels.append(panel)
-                elif panel.title in ('Plasma',): # KDE
+                elif panel.title in ('Plasma', ): # KDE
                     self.panels.append(panel)
-                    self.desktop = 'plasma'
+                    self.wm = 'plasma'
                 elif panel.title in ('Top Panel', 'Left Panel', 'Right Panel', 'Bottom Panel'): # mate
                     self.panels.append(panel)
-                    self.desktop = 'mate'
+                    self.wm = 'mate'
 
         if self.DB:
-            print('#wins:', len(windows), '#panels:', len(self.panels),
+            print('wm:', self.wm, '#wins:', len(windows), '#panels:', len(self.panels),
                     'win:', vars(win))
 
     def get_displays(self):
@@ -120,11 +123,13 @@ class MoveWin:
          - looking for:    DVI-0 connected 1920x1080+0+0 (normal left ...
          - disps[] is forced into geo namespace (.w, .x, .y)
         """
-        if self.desktop in ('cinnamon',):
+        if self.wm in ('cinnamon'):
             for win in self.windows.values():
                 if win.title in ('Desktop', 'nemo-desktop'):
-                    ns = self.make_geo(w=win.w, h=win.h, x=win.x, y=win.y, D=len(self.disps))
+                    # NOTE: unsure why the //2 is required for cinnamon
+                    ns = self.make_geo(w=win.w, h=win.h, x=win.x//2, y=win.y//2, D=len(self.disps))
                     self.disps.append(ns)
+                    print(self.wm, 'ns:', vars(ns))
         else:
             out = subprocess.check_output(['xrandr']).decode('ascii', 'ignore')
             reg = re.compile(r' connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
@@ -146,7 +151,18 @@ class MoveWin:
         """Adjust disps by removing panels from their area."""
         # pylint: disable=too-many-nested-blocks
         for panel in self.panels:
-            ogeo, dummy_states = self.get_window_info(panel.win_id)
+            if self.wm in ('mate', ):
+                # not sure why, but for mate, cannot count on 'xwininfo' for geometry.
+                # thus, using the 'wmctrl' values (divided by two)
+                # NOTE: unsure why the //2 is required for mate
+                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x//2, y=panel.y//2, D=panel.desktop)
+            elif self.wm in ('plasma', 'xfce4'):
+                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x, y=panel.y, D=panel.desktop)
+            else:
+                ogeo, _ = self.get_window_info(panel.win_id)
+
+            if self.DB:
+                print('panel:', panel.title, vars(ogeo))
 
             for display in self.disps:
                 if self.inside(ogeo, display):
@@ -159,11 +175,11 @@ class MoveWin:
                             display.x += ogeo.w
                             display.w -= ogeo.w
                             if self.DB:
-                                print('panel on LEFT adj', vars(display))
+                                print('     LEFT adj', vars(display))
                         elif ogeo.x + ogeo.w == display.x + display.w:
                             display.w -= ogeo.w
                             if self.DB:
-                                print('panel on RIGHT adj', vars(display))
+                                print('     RIGHT adj', vars(display))
                     elif ogeo.h < ogeo.w // 3: # horizontal panel
                         if ogeo.w <= (7 * display.w) // 10:
                             pass # not much of a horizontal panel
@@ -171,11 +187,11 @@ class MoveWin:
                             display.y += ogeo.h
                             display.h -= ogeo.h
                             if self.DB:
-                                print('panel on TOP adj', vars(display))
+                                print('     TOP adj', vars(display))
                         elif ogeo.y + ogeo.h == display.y + display.h:
                             display.h -= ogeo.h
                             if self.DB:
-                                print('panel on BOTTOM adj', vars(display))
+                                print('     BOTTOM adj', vars(display))
 
 
     @staticmethod
@@ -240,7 +256,7 @@ class MoveWin:
         geo_str = (('w', "Width:"), ('h', "Height:"),
             ('x', "Absolute upper-left X:"), ('y', "Absolute upper-left Y:"),
             ('rx', "Relative upper-left X:"), ('ry', "Relative upper-left Y:"), ('', ""))
-        state_str = ("Maximized Vert", "Maximized Horz", "Fullscreen",)
+        state_str = ("Maximized Vert", "Maximized Horz", "Fullscreen", )
         ogeo = MoveWin.namespace({'D': -1, 'w': None, 'h': None, 'x': None, 'y': None,
             'rx': None, 'ry': None})
         states = []
@@ -262,7 +278,7 @@ class MoveWin:
 
         # for whatever reasons, XFCE4's rx, ry conventions are unique to it.
         # Generally, infer from frame extents
-        if self.desktop not in ('xfce4',) and frame_extents_str:
+        if self.wm not in ('xfce4', ) and frame_extents_str:
             nums = frame_extents_str.split(', ', 4)
             ogeo.rx , ogeo.ry = int(nums[0]), int(nums[2])
 
@@ -365,13 +381,13 @@ class MoveWin:
                 subprocess.call(cmd)
 
         # wmctrl is iffy with -b argument (so, specify one state per command)
-        if self.desktop in ('plasma', 'mate'):
+        if self.wm in ('plasma', 'xmate'):
             # this kludge to break possible tiled window is per:
             #  unix.stackexchange.com/questions/353205/wmctrl-doesnt-move-window-when-snapped-or-tiled
-            wmctrl(win_id, [['-b', 'toggle,' + s] for s in ['maximized_vert','maximized_vert']])
+            wmctrl(win_id, [['-b', 'toggle,' + s] for s in ['maximized_vert', 'maximized_vert']])
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
-        x = ngeo.x + (ngeo.rx if self.desktop in ('plasma',) else 0)
-        y = ngeo.y + (ngeo.ry if self.desktop in ('plasma',) else 0)
+        x = ngeo.x + (ngeo.rx if self.wm in ('plasma', ) else 0)
+        y = ngeo.y + (ngeo.ry if self.wm in ('plasma', ) else 0)
         w = ngeo.w - ngeo.rx - ngeo.rx
         h = ngeo.h - ngeo.ry - ngeo.rx
         spec = '0,%d,%d,%d,%d' % (x, y, w, h)
@@ -381,12 +397,12 @@ class MoveWin:
 
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
 
-        # ensure on top
-        subprocess.call(['xdotool', 'windowraise', win_id])
-
         # put mouse in moved window
         subprocess.call(['xdotool', 'mousemove',
             str(ngeo.x + ngeo.w//2), str(ngeo.y + self.ogeo.ry + 2)])
+
+        # ensure on top
+        subprocess.call(['xdotool', 'windowraise', win_id])
 
 
     def DB_method(self, func):
