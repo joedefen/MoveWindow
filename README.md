@@ -1,7 +1,7 @@
 # MoveWindow (a.k.a. mvwin)
 This script moves windows between monitors for these Linux desktop environments (DEs):
 - **XFCE4** (which provides no shortcuts for doing so)
-- **KDE/Plasma** (where the built-in moves are not too smart), but
+- **KDE/Plasma** (where the built-in moves are not too smart, but this script
   looks rather lousy when Compositor is running)
 - **Mate**
 - **Cinnamon**
