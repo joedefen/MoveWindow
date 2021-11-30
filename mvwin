@@ -226,19 +226,23 @@ class MoveWin:
 
         for ia, sa in enumerate(self.disps):
             for ib, sb in enumerate(self.disps):
-                if sa != sb:
+                if ia != sb:
                     # Duplicate display on right then bottom, and check intersection
                     # If several, choose biggest for best choice presumably
                     area = self.overlap(self.dup_geo(sa, x=sa.x + sa.w), sb)
                     if area > relatives[ia].right_area:
                         relatives[ia].right_area = area
                         relatives[ia].right = ib
+                    if area > relatives[ib].right_area:
+                        relatives[ib].right_area = area
                         relatives[ib].left = ia
 
                     area = self.overlap(self.dup_geo(sa, y=sa.y + sa.h), sb)
                     if area > relatives[ia].down_area:
                         relatives[ia].down_area = area
                         relatives[ia].down = ib
+                    if area > relatives[ib].down_area:
+                        relatives[ib].down_area = area
                         relatives[ib].up = ia
 
         for num in range(len(self.disps)):
