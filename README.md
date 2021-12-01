@@ -1,8 +1,7 @@
 # MoveWindow (a.k.a. mvwin)
 This script moves windows between monitors for these Linux desktop environments (DEs):
 - **XFCE4** (which provides no shortcuts for doing so)
-- **KDE/Plasma** (where the built-in moves are not too smart, but this script
-  looks rather lousy when Compositor is running)
+- **KDE/Plasma** (but this script looks rather lousy when Compositor is running)
 - **Mate**
 - **Cinnamon**
 - *perhaps* other linux desktops but w/o adjustment for its panels
@@ -21,6 +20,8 @@ If the window is maximized horizontally and/or vertically,
 the movement is more likely to be faulty than when not maximized.
 Imperfect movements are minimized for each DE with custom workarounds, but
 there are a few imperfections w/o a known workaround.
+
+**KDE Alternative.** A companion project, [joedefen/KWin-move-win-directionally-script](https://github.com/joedefen/KWin-move-win-directionally-script), provides similar functionality for KDE, should run under Wayland, and runs much more efficiently.
 
 
 ## X-Windows is Required
