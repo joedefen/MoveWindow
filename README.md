@@ -29,7 +29,11 @@ so, sometimes windows are enlarged when moved.
 [joedefen/KWin-move-win-directionally-script](https://github.com/joedefen/KWin-move-win-directionally-script),
 provides similar functionality for KDE, should run under Wayland, and runs much more efficiently.
 It ensures the moved window is raised to the top (unliked the KDE built-in moves),
-but it leaves the mouse behind just like the built-in moves.
+but it leaves the mouse behind just like the built-in moves (because KWin scripting offers no
+practical way to move the mouse evidently).
+Personally, I use the `mvwin` command, turn off KDE's compositor to make it run much smoother,
+and appreciate the mouse moving with the window (which also make activation of the moved window
+more certain).
 
 
 
@@ -109,7 +113,7 @@ This script is loosely derived from the script/concepts in [calandoa/movescreen]
 Use `movescreen` if python 3.4+ is not available.
 
 Relative to `movescreen`, `mvwin` force fits the window within the new monitor,
-and generally, I think, is a bit more bug free and less annoying
+and generally, I think, is a more bug free and much less annoying
 (e.g., avoids overlapping panels, always fits windows, less geometry "loss" with multiple moves, etc.).
 
 This script is tested on four monitors of different sizes and orientations and with 
