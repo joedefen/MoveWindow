@@ -38,6 +38,10 @@ class MoveWin:
         parser = argparse.ArgumentParser()
         parser.add_argument('-r', '--ratio', action='store_true',
                 help='keep window ratio')
+        parser.add_argument('-d', '--disable-mouse', action='store_true',
+                help='disable moving the mouse', default=False)
+        parser.add_argument('-p', '--post_sort', type=str, default=False, choices=['x', 'y'],
+                help='Sorts displays by coordinate')
         parser.add_argument('-P', '--no-panel-adjust', action='store_true',
                 help='defeat adjustment for desktop panels')
         parser.add_argument('--DB', action='store_true',
@@ -67,8 +71,9 @@ class MoveWin:
         self.win_id = args.win_id # window ID (find active if not given)
         self.dir = args.direction[0] # direction to move (e.g, up or next)
         self.use_ratio = args.ratio # preserved window/display ratio, not size
+        self.disable_mouse = args.disable_mouse
+        self.post_sort = args.post_sort
         self.adjust_panel = not args.no_panel_adjust # consider panels?
-
 
     def find_target_window(self):
         """Get the ID of the active window....  And the relevant panels.
@@ -143,7 +148,7 @@ class MoveWin:
                                 int(match.group(5)),
                                 D=len(self.disps))
                     self.disps.append(ns)
-
+        
         if self.DB:
             print('disps:', '\n     '.join([str(vars(s)) for s in self.disps]))
 
@@ -192,7 +197,8 @@ class MoveWin:
                             display.h -= ogeo.h
                             if self.DB:
                                 print('     BOTTOM adj', vars(display))
-
+        if self.post_sort:
+            self.disps.sort(key = lambda d: (d.y if self.post_sort.lower() == 'y' else d.x))
 
     @staticmethod
     def overlap(a, b):
@@ -401,9 +407,10 @@ class MoveWin:
 
         wmctrl(win_id, [['-b', 'toggle,' + s] for s in self.states])
 
-        # put mouse in moved window
-        subprocess.call(['xdotool', 'mousemove',
-            str(ngeo.x + ngeo.w//2), str(ngeo.y + self.ogeo.ry + 2)])
+        if not self.disable_mouse:
+            # put mouse in moved window
+            subprocess.call(['xdotool', 'mousemove',
+                str(ngeo.x + ngeo.w//2), str(ngeo.y + self.ogeo.ry + 2)])
 
         # ensure on top
         subprocess.call(['xdotool', 'windowraise', win_id])

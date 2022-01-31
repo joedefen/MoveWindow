@@ -39,13 +39,17 @@ more certain).
 
 ## Command Line Arguments
 ```
-mvwin [-h] [-r] [-P] [--DB] [-w WIN_ID] {left,right,up,down,next,prev,here}
+mvwin [-h] [-r] [-d] [-p {x,y}] [-P] [--DB] [-w WIN_ID] {left,right,up,down,next,prev,here}
 
 positional arguments:
-  {left,right,up,down,next,prev,here} -  choose direction of movement
+  {left,right,up,down,next,prev,here} - choose direction of movement
 
-optional arguments:
+options:
+  -h, --help            show this help message and exit
   -r, --ratio           keep window ratio
+  -d, --disable-mouse   disable moving the mouse
+  -p {x,y}, --post_sort {x,y}
+                        Sorts displays by coordinate
   -P, --no-panel-adjust
                         defeat adjustment for desktop panels
   --DB                  print debugging info
