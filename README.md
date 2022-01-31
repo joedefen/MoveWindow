@@ -60,7 +60,7 @@ options:
 
 Relocated windows are made to fit, made active, raised, and will contain the mouse.
 * Unless fullscreen, moved windows do not overlap XFCE4 and Mate panels
-  (unless defeated using `-P` with you may wish to use if you use hidden panels).
+  (unless defeated using `-P` which you may wish to use if you use hidden panels).
 * Similarly, for KDE/Plasma, but identifying panels is a guessing game;
   the heuristic rule is that a "panel" must be on an edge of a display
   and take up at least 70% of the length of that edge.
