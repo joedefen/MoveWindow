@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 This script moves windows between monitors supporting:
  - XFCE4 (which provides no shortcuts for doing so).
  - Plasma
@@ -15,12 +15,20 @@ Theory of operation... uses
 Written by joedefen / 2020 to 2021 - Public domain
 """
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,line-too-long
 
 import subprocess
 import re
 import sys
-import time
+from functools import cmp_to_key
+
+def calc_center_x(geo):
+    """Return the x of the center of the geo."""
+    return geo.x + geo.w//2
+
+def calc_center_y(geo):
+    """Return the y of the center of the geo."""
+    return geo.y + geo.h//2
 
 class MoveWin:
     """The class that encapsulates the logic for moving windows between
@@ -58,13 +66,17 @@ class MoveWin:
         return args
 
     def __init__(self, args):
-        self.disps = [] # all display geometries
-        self.relatives = [] # relatives of displays
+        self.disps = {} # all display geometries key by their 'tag'
+        self.ordered_disps = [] # all disp in 'next' order
+        self.center_x, self.center_y = 0, 0 # center of all (unadjusted) displays
+        self.all_horizontal, self.all_vertical = True, True # all displays are vert or horiz?
+        self.relatives = {} # relatives of displays key by display tag
         self.states = [] # state of window (e.g., fullscreen)
         self.ogeo = None    # old window geometry
         self.ngeo = None    # now window geometry
         self.panels = []  # all xcfe4-panels on desktop of window
         self.wm = 'unknown' # window manager starts as unknown
+        self.windows = {}
 
         # translate args to control variables
         self.DB = args.DB # print debug info?
@@ -86,7 +98,6 @@ class MoveWin:
             ns = MoveWin.namespace()
             ns.win_id, ns.desktop, ns.x, ns.y, ns.w, ns.h, *more = line.split(maxsplit=7)
             ns.x, ns.y, ns.w, ns.h = int(ns.x), int(ns.y), int(ns.w), int(ns.h)
-            # NOTE: I cannot imagine why I have to cut the x,y by a factor of two
             ns.machine = more[0] if len(more) > 0 else ''
             ns.title = more[1] if len(more) > 1 else ''
             windows[int(ns.win_id, 0)] = ns
@@ -128,29 +139,37 @@ class MoveWin:
          - looking for:    DVI-0 connected 1920x1080+0+0 (normal left ...
          - disps[] is forced into geo namespace (.w, .x, .y)
         """
-        if self.wm in ('cinnamon'):
+        if self.wm in ('cinnamon',):
             for win in self.windows.values():
                 if win.title in ('Desktop', 'nemo-desktop'):
                     # NOTE: unsure why the //2 is required for cinnamon
-                    ns = self.make_geo(w=win.w, h=win.h, x=win.x//2, y=win.y//2, D=len(self.disps))
-                    self.disps.append(ns)
-                    print(self.wm, 'ns:', vars(ns))
+                    tag = f'disp{len(self.disps)}'
+                    ns = self.make_geo(w=win.w, h=win.h, x=win.x//2, y=win.y//2, tag=tag)
+                    self.disps[tag] = ns
+                    self.center_x += calc_center_x(ns)
+                    self.center_y += calc_center_y(ns)
         else:
             out = subprocess.check_output(['xrandr']).decode('ascii', 'ignore')
-            reg = re.compile(r' connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
+            reg = re.compile(r'^(.*) connected( primary)? ([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)')
             for line in out.splitlines():
                 match = reg.search(line)
                 if match:
+                    tag = match.group(1)
                     ns = self.make_geo(
-                                int(match.group(2)),
                                 int(match.group(3)),
                                 int(match.group(4)),
                                 int(match.group(5)),
-                                D=len(self.disps))
-                    self.disps.append(ns)
-        
+                                int(match.group(6)),
+                                tag=tag)
+                    self.disps[tag] = ns
+                    self.center_x += calc_center_x(ns)
+                    self.center_y += calc_center_y(ns)
+        if len(self.disps) > 0:
+            self.center_x //= len(self.disps)
+            self.center_y //= len(self.disps)
+
         if self.DB:
-            print('disps:', '\n     '.join([str(vars(s)) for s in self.disps]))
+            print('disps:', '\n     '.join([str(vars(s)) for s in self.disps.values()]))
 
     def adjust_displays(self):
         """Adjust disps by removing panels from their area."""
@@ -160,18 +179,18 @@ class MoveWin:
                 # not sure why, but for mate, cannot count on 'xwininfo' for geometry.
                 # thus, using the 'wmctrl' values (divided by two)
                 # NOTE: unsure why the //2 is required for mate
-                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x//2, y=panel.y//2, D=panel.desktop)
+                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x//2, y=panel.y//2, tag=str(panel.desktop))
             elif self.wm in ('plasma', 'xfce4'):
-                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x, y=panel.y, D=panel.desktop)
+                ogeo = self.make_geo(w=panel.w, h=panel.h, x=panel.x, y=panel.y, tag=str(panel.desktop))
             else:
                 ogeo, _ = self.get_window_info(panel.win_id)
 
             if self.DB:
                 print('panel:', panel.title, vars(ogeo))
 
-            for display in self.disps:
+            for display in self.disps.values():
                 if self.inside(ogeo, display):
-                    ogeo.D = display.D
+                    ogeo.tag = display.tag
 
                     if ogeo.w < ogeo.h // 3: # vertical panel
                         if ogeo.h <= (7 * display.h) // 10:
@@ -197,8 +216,6 @@ class MoveWin:
                             display.h -= ogeo.h
                             if self.DB:
                                 print('     BOTTOM adj', vars(display))
-        if self.post_sort:
-            self.disps.sort(key = lambda d: (d.y if self.post_sort.lower() == 'y' else d.x))
 
     @staticmethod
     def overlap(a, b):
@@ -219,44 +236,106 @@ class MoveWin:
         using their idx; e.g. if disps[0] is at left of 1,
         then relatives[1].left == 0 and relatives[0].right == 1
         """
-        for _ in range(len(self.disps)):
-            self.relatives.append(MoveWin.namespace(
-                {'right_area': 0, 'down_area': 0}))
+        for tag in self.disps:
+            self.relatives[tag] = MoveWin.namespace(
+                    {'right_area': 0, 'down_area': 0})
         relatives = self.relatives
 
+        all_horizontal, all_vertical = True, True # until proven otherwise
 
-        for ia, sa in enumerate(self.disps):
-            relatives[ia].here = ia
-            relatives[ia].next = (ia + 1) % len(self.disps)
-            relatives[ia].prev = (ia - 1) % len(self.disps)
-
-        for ia, sa in enumerate(self.disps):
-            for ib, sb in enumerate(self.disps):
-                if ia != sb:
+        for ta, sa in self.disps.items():
+            for tb, sb in self.disps.items():
+                if ta != tb:
                     # Duplicate display on right then bottom, and check intersection
                     # If several, choose biggest for best choice presumably
                     area = self.overlap(self.dup_geo(sa, x=sa.x + sa.w), sb)
-                    if area > relatives[ia].right_area:
-                        relatives[ia].right_area = area
-                        relatives[ia].right = ib
-                    if area > relatives[ib].right_area:
-                        relatives[ib].right_area = area
-                        relatives[ib].left = ia
+                    if area > relatives[ta].right_area:
+                        relatives[ta].right_area = area
+                        relatives[ta].right = tb
+                        all_vertical = False
+                    if area > relatives[tb].right_area:
+                        relatives[tb].right_area = area
+                        relatives[tb].left = ta
+                        all_vertical = False
 
                     area = self.overlap(self.dup_geo(sa, y=sa.y + sa.h), sb)
-                    if area > relatives[ia].down_area:
-                        relatives[ia].down_area = area
-                        relatives[ia].down = ib
-                    if area > relatives[ib].down_area:
-                        relatives[ib].down_area = area
-                        relatives[ib].up = ia
+                    if area > relatives[ta].down_area:
+                        relatives[ta].down_area = area
+                        relatives[ta].down = tb
+                        all_horizontal = False
+                    if area > relatives[tb].down_area:
+                        relatives[tb].down_area = area
+                        relatives[tb].up = ta
+                        all_horizontal = False
+        self.all_horizontal, self.all_vertical = all_horizontal, all_vertical
 
-        for num in range(len(self.disps)):
-            delattr(relatives[num], 'right_area')
-            delattr(relatives[num], 'down_area')
+        for relative in relatives.values():
+            delattr(relative, 'right_area')
+            delattr(relative, 'down_area')
         if self.DB:
-            for num in range(len(self.disps)):
-                print(num, vars(relatives[num]))
+            for tag in relatives:
+                print(tag, vars(relatives[tag]))
+
+    def order_displays(self):
+        """Put the displays in a "logical" order for next/prev.
+         - if horizontal (or forced), sort by its center-x
+         - if vertical (or forced), sort by its center-y
+         - sort radially (i.e., clockwise)
+        """
+
+        def clockwiseof(a, b):
+            """Inspired by: https://alltodev.com/sort-points-in-clockwise-order."""
+            nonlocal self
+            center_x, center_y = self.center_x, self.center_y
+            acx, bcx = calc_center_x(a), calc_center_x(b)
+            acy, bcy = calc_center_y(a), calc_center_y(b)
+
+            if acx - center_x >= 0 and bcx - center_x < 0:
+                return 1
+            if acx - center_x < 0 and bcx - center_x >= 0:
+                return -1
+            if acx - center_x == 0 and bcx - center_x == 0:
+                if acy - center_y >= 0 or bcy - center_y >= 0:
+                    return acy > bcy
+                return bcy > acy
+
+            # compute the cross product of vectors (center -> a) x (center -> b)
+            det = (acx - center_x) * (bcy - center_y) - (bcx - center_x) * (acy - center_y)
+            if det < 0:
+                return 1
+            if det > 0:
+                return -1
+
+            # points a and b are on the same line from the center
+            # check which point is closer to the center
+            d1 = (acx - center_x) * (acx - center_x) + (acy - center_y) * (acy - center_y)
+            d2 = (bcx - center_x) * (bcx - center_x) + (bcy - center_y) * (bcy - center_y)
+            return d1 > d2
+
+        ordered_disps = list(self.disps.values())
+        if self.DB:
+            print("pre-order:", [d.tag for d in ordered_disps])
+        if self.post_sort:
+            ordered_disps.sort(key=lambda d: (d.y if self.post_sort.lower() == 'y' else d.x))
+        elif self.all_horizontal:
+            ordered_disps.sort(key=calc_center_x)
+        elif self.all_vertical:
+            ordered_disps.sort(key=calc_center_y)
+        else: # sort in clockwise order
+            ordered_disps.sort(key=cmp_to_key(clockwiseof))
+        if self.DB:
+            print("post-order:", [d.tag for d in ordered_disps])
+
+        relatives = self.relatives
+        for ii in range(len(ordered_disps)):
+            tag = ordered_disps[ii].tag
+            relatives[tag].here = tag
+            relatives[tag].next = ordered_disps[(ii + 1) % len(self.disps)].tag
+            relatives[tag].prev = ordered_disps[(ii - 1) % len(self.disps)].tag
+
+        self.ordered_disps = ordered_disps
+
+
 
     def get_window_info(self, win_id):
         """ Get focused window info"""
@@ -267,8 +346,8 @@ class MoveWin:
             ('x', "Absolute upper-left X:"), ('y', "Absolute upper-left Y:"),
             ('rx', "Relative upper-left X:"), ('ry', "Relative upper-left Y:"), ('', ""))
         state_str = ("Maximized Vert", "Maximized Horz", "Fullscreen", )
-        ogeo = MoveWin.namespace({'D': -1, 'w': None, 'h': None, 'x': None, 'y': None,
-            'rx': None, 'ry': None})
+        ogeo = MoveWin.namespace({'w': None, 'h': None, 'x': None, 'y': None,
+            'rx': None, 'ry': None, 'tag': ''})
         states = []
 
         # Replace each ogeo elem with matching int, add states/types in state, converted for wmctrl
@@ -290,7 +369,7 @@ class MoveWin:
         # Generally, infer from frame extents
         if self.wm not in ('xfce4', ) and frame_extents_str:
             nums = frame_extents_str.split(', ', 4)
-            ogeo.rx , ogeo.ry = int(nums[0]), int(nums[2])
+            ogeo.rx, ogeo.ry = int(nums[0]), int(nums[2])
 
 
         # NOTE: adjust the geometry to include the whole window, borders and
@@ -312,20 +391,20 @@ class MoveWin:
 
     def pick_new_display(self):
         """ Find display of active window from the max area. """
-        areas = list(map(lambda s: self.overlap(self.ogeo, s), self.disps))
+        areas = list(map(lambda s: self.overlap(self.ogeo, s), self.ordered_disps))
         try:
             cur_idx = areas.index(max(areas + [1]))
         except ValueError:
             sys.exit(3)
         ogeo = self.ogeo
-        ogeo.D = cur_idx
+        ogeo.tag = self.ordered_disps[cur_idx].tag
 
         if self.DB:
-            print('self.dir:', self.dir, 'ogeo.D:', ogeo.D)
-        nidx = getattr(self.relatives[ogeo.D], self.dir, None)
+            print('self.dir:', self.dir, 'ogeo.tag:', ogeo.tag)
+        ntag = getattr(self.relatives[ogeo.tag], self.dir, None)
 
         self.ngeo = self.dup_geo(ogeo) # fix w,h,x,y later
-        self.ngeo.D = ogeo.D if nidx is None else nidx
+        self.ngeo.tag = ogeo.tag if ntag is None else ntag
 
         if self.DB:
             print('ngeo:', vars(self.ngeo))
@@ -334,8 +413,8 @@ class MoveWin:
     def plan_move(self):
         """ Compute the new window geometry. """
         ngeo = self.ngeo
-        odisp = self.disps[self.ogeo.D]
-        ndisp = self.disps[ngeo.D]
+        odisp = self.disps[self.ogeo.tag]
+        ndisp = self.disps[ngeo.tag]
         if self.DB:
             print('odisp:', vars(odisp))
             print('ndisp:', vars(ndisp))
@@ -429,6 +508,7 @@ class MoveWin:
         self.DB_method('find_target_window()')
         self.DB_method('get_displays()')
         self.DB_method('find_relatives()')
+        self.DB_method('order_displays()')
         self.DB_method('get_chosen_window_info()')
         if 'fullscreen' not in self.states and self.adjust_panel:
             self.DB_method('adjust_displays()')
@@ -437,22 +517,24 @@ class MoveWin:
         self.DB_method('do_move()')
 
     @staticmethod
-    def make_geo(w, h, x, y, rx=0, ry=0, D=-1):
+    def make_geo(w, h, x, y, rx=0, ry=0, tag=''):
         """Make a geo from its component values (w, h, x, y, ...) to namespace."""
-        return MoveWin.namespace({'D': D, 'w': w, 'h': h, 'x': x, 'y': y,
-            'rx': rx, 'ry': ry})
+        return MoveWin.namespace({'w': w, 'h': h, 'x': x, 'y': y,
+            'rx': rx, 'ry': ry, 'tag':tag})
 
     @staticmethod
-    def dup_geo(o, w=None, h=None, x=None, y=None, rx=None, ry=None, d=None):
+    def dup_geo(o, w=None, h=None, x=None, y=None, rx=None, ry=None, tag=None):
         """Copy one 'geo' to another with optional overrides."""
-        return MoveWin.namespace({
-            'D': o.D if d is None else d,
+        # print('ogeo:', vars(o))
+        ns = MoveWin.namespace({
             'w': o.w if w is None else w,
             'h': o.h if h is None else h,
             'x': o.x if x is None else x,
             'y': o.y if y is None else y,
+            'tag': o.tag if tag is None else tag,
             'rx': o.rx if rx is None else rx,
             'ry': o.ry if ry is None else ry})
+        return ns
 
     @staticmethod
     def namespace(avDict=None):

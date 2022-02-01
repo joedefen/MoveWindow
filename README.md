@@ -78,6 +78,41 @@ The monitor is determined by specifying one of:
 - `next`, `prev` - move in an arbitrary rotation through monitors
 - `here` - same screen
 
+"Next" is determined by the monitor sort order:
+* the `-p1` option which sorts the monitors by the x- or y- coordinate
+  of the upper left corner of the monitors.
+* if the monitors are arranged vertically, the monitors are sorted from
+  top to bottom.
+* if the monitors are arranged horizontally, the monitors are sorted from
+  left to right.
+* in any other monitor arrangement, the monitors are sorted in
+  a clockwise manner.
+
+If you choose `here` or a monitor that does not exist (e.g., `right` of
+a rightmost monitor), then the chosen window will simply be made to
+fit within current monitor if it does not already.
+
+In practice, you define keyboard shortcuts and tie them to this script.
+Personally, I define four shortcuts:
+
+- `ALT-J` - `mvwin down` # move active window down
+- `ALT-K` - `mvwin up` # move active window up
+- `ALT-H` - `mvwin left` # move active window left
+- `ALT-L` - `mvwin right` # move active window right
+    
+The JKHL keys mimic the directional keys in `vim`, and `ALT-Right-Click` is used
+to resize windows; so ALT works out well as the "Window" alteration key.
+For debuging, run `mvwin` manually in a terminal window and use `--DB` option to print
+values that it found and computed.
+
+# Installation (Manual)
+Put `mvwin` on your PATH and define keyboard shortcuts per your Desktop guidance.
+
+# Dependencies
+- python 3.4+
+- X-Windows tools:
+  - `xrandr`
+
 If you choose `here` or a monitor that does not exist (e.g., `right` of
 a rightmost monitor), then the chosen window will simply be made to
 fit within current monitor if it does not already.
